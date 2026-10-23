@@ -106,6 +106,15 @@ class SdpaCompositeTest(parameterized.TestCase):
           getattr(actual, flag_name), getattr(expected, flag_name), flag_name
       )
 
+  def test_rope_composite_left_to_model_patch_without_master_switch(self):
+    self.assertIsNone(_config().use_rope_composite)
+    self.assertIsNone(_config(use_sdpa_composite=True).use_rope_composite)
+    self.assertTrue(_config(apply_gpu_composites=True).use_rope_composite)
+    self.assertTrue(_config(use_rope_composite=True).use_rope_composite)
+    self.assertFalse(_config(use_rope_composite=False).use_rope_composite)
+    config = _config(apply_gpu_composites=True, use_rope_composite=False)
+    self.assertFalse(config.use_rope_composite)
+
   def test_non_bool_raises(self):
     with self.assertRaisesRegex(TypeError, "use_sdpa_composite must be bool"):
       _config(use_sdpa_composite="invalid")  # pyrefly: ignore[bad-argument-type]

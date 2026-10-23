@@ -176,7 +176,9 @@ def export(
       numbers) for prefill lengths.
     enable_gpu_dynamic_cache: Whether to enable GPU dynamic shapes (magic
       numbers) for cache length.
-    use_rope_composite: Whether to enable the RoPE composite.
+    use_rope_composite: Whether to enable the RoPE composite. If unset, it is
+      on with `apply_gpu_composites=True`; otherwise it is on for Gemma 4,
+      except with split cache, and off for other models.
     use_qkv_norm_rope_composite: Whether to enable the QKV norm rope composite.
     use_sdpa_composite: Whether to enable the fused transposed SDPA composite in
       both prefill and decode signatures.

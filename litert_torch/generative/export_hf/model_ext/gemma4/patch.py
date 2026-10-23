@@ -657,6 +657,12 @@ try:
     fuse_gate_up = export_config.fuse_gate_up
     fuse_qkv = export_config.fuse_qkv
     use_rope = export_config.use_rope_composite
+    if use_rope is None:
+      # On by default: the decomposed RoPE computes its angle from a float copy
+      # of the position, and fp16 activations cannot hold every integer above
+      # 2048, while `odml.rope` takes the integer position. Exports that pass
+      # the rotary embedding in as an input (split cache) keep it off.
+      use_rope = not export_config.externalize_rope
     use_qkv_norm_rope = export_config.use_qkv_norm_rope_composite
     use_swiglu = getattr(export_config, "use_swiglu_composite", False)
     print(

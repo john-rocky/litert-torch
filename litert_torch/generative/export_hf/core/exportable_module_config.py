@@ -277,6 +277,11 @@ class ExportableModuleConfig:
     # The GPU magic-number cache length cannot be combined with dynamic shapes.
     if "enable_gpu_dynamic_cache" in unset_flags and self.enable_dynamic_shape:
       self.enable_gpu_dynamic_cache = False
+    # Without the master switch, an unset `use_rope_composite` stays `None` so
+    # that the model patch picks the default (on for Gemma 4, see
+    # `model_ext/gemma4/patch.py`).
+    if "use_rope_composite" in unset_flags and not self.apply_gpu_composites:
+      self.use_rope_composite = None
 
     if not isinstance(self.use_sdpa_composite, bool):
       raise TypeError(

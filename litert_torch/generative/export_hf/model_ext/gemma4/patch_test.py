@@ -351,6 +351,42 @@ class PatchTest(parameterized.TestCase):
           actual_logits, expected_logits, rtol=1e-4, atol=1e-4
       )
 
+  @parameterized.named_parameters(
+      ("default", {}, True),
+      ("explicitly_off", {"use_rope_composite": False}, False),
+      ("split_cache", {"split_cache": True}, False),
+  )
+  def test_patch_gemma4_model_rope_composite_default(
+      self, config_kwargs, expect_rope_composite
+  ):
+    torch.manual_seed(0)
+    config = _get_dummy_gemma4_text_config()
+    config.vocab_size = 256
+    model = modeling_gemma4.Gemma4ForCausalLM(config).eval()
+
+    input_ids = torch.tensor([[1, 2, 3, 4]], dtype=torch.long)
+    with torch.no_grad():
+      expected_logits = model(input_ids=input_ids).logits
+
+    export_config = exportable_module_config.ExportableModuleConfig(
+        model="dummy", **config_kwargs
+    )
+
+    with patch.patch_gemma4_model(model, export_config):
+      self_attn = model.model.layers[0].self_attn
+      if expect_rope_composite:
+        self.assertIsInstance(self_attn, patch.FusedGemma4TextAttention)
+        self.assertTrue(self_attn.use_rope_composite)
+        self.assertFalse(self_attn.fuse_qkv)
+      else:
+        self.assertNotIsInstance(self_attn, patch.FusedGemma4TextAttention)
+
+      with torch.no_grad():
+        actual_logits = model(input_ids=input_ids).logits
+      torch.testing.assert_close(
+          actual_logits, expected_logits, rtol=1e-4, atol=1e-4
+      )
+
   def test_patch_gemma4_model_on_meta_device(self):
     config = _get_dummy_gemma4_text_config()
     config.vocab_size = 256
