@@ -254,7 +254,11 @@ def build_llm_metadata(
     else:
       expanded_stop_tokens.add(stop_token)
 
-  for stop_token in expanded_stop_tokens:
+  # Sorted, because set order follows the per-process string hash seed and
+  # would make two exports of the same model differ.
+  for stop_token in sorted(
+      expanded_stop_tokens, key=lambda t: (isinstance(t, str), str(t))
+  ):
     if isinstance(stop_token, int):
       tu = llm_metadata.stop_tokens.add()
       tu.token_ids.ids.append(stop_token)

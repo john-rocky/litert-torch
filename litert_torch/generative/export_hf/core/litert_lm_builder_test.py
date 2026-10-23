@@ -336,5 +336,46 @@ class BuildLlmMetadataStartTokenTest(parameterized.TestCase):
     self.assertIn('message["content"]', metadata.jinja_prompt_template)
 
 
+class BuildLlmMetadataStopTokenTest(parameterized.TestCase):
+
+  def test_stop_tokens_are_written_in_sorted_order(self):
+    # Regression test for https://github.com/google-ai-edge/litert-torch/issues/1346:
+    # the stop tokens were written in set order, which follows the per-process
+    # string hash seed, so two exports of one checkpoint differed.
+    class _FakeModelWithEosIds:
+      generation_config = types.SimpleNamespace(eos_token_id=[106, 1])
+
+    tokenizer = _FakeTokenizer(
+        bos_token=None, bos_token_id=None, prepends_bos=False
+    )
+    llm_metadata = litert_lm_builder.build_llm_metadata(
+        source_model_artifacts=export_lib.SourceModelArtifacts(
+            model=_FakeModelWithEosIds(),
+            model_config=None,
+            text_model_config=None,
+            tokenizer=tokenizer,
+        ),
+        export_config=exportable_module.ExportableModuleConfig(
+            model="test-model"
+        ),
+        chat_templates=(
+            (None, None),
+            (None, None),
+            ("<start_of_turn>model\n", "<end_of_turn>"),
+        ),
+        exported_model_artifacts=export_lib.ExportedModelArtifacts(),
+        litert_lm_model_type_override="generic",
+    )
+    written = [
+        tu.token_str if tu.HasField("token_str") else tu.token_ids.ids[0]
+        for tu in llm_metadata.stop_tokens
+    ]
+    expected_strs = sorted(
+        prefix + "<end_of_turn>"
+        for prefix in [""] + litert_lm_builder._STOP_TOKEN_PREFIXES
+    )
+    self.assertEqual(written, [1, 106] + expected_strs)
+
+
 if __name__ == "__main__":
   absltest.main()
