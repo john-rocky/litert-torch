@@ -15,8 +15,9 @@
 # Common utility functions for data loading etc.
 from dataclasses import dataclass
 from litert_torch.backend import lowerings
+from litert_torch.backend.lowerings import utils as lowering_utils
+from litert_torch.backend.torch_tfl import _lowerings as tfl_lowerings
 from litert_converter.mlir import ir
-from litert_converter.mlir.dialects import stablehlo
 import torch
 
 
@@ -49,29 +50,25 @@ def _(lhs, rhs):
   return torch.einsum("abcd,abed->abce", lhs, rhs)
 
 
+# Lowers to tfl.batch_matmul with adj_y, i.e. lhs @ rhs^T on the last two dims.
+# The converter folds an equivalent stablehlo.dot_general into the same
+# BATCH_MATMUL when the shapes are static, but with a dynamic KV cache length
+# (export with dynamic shapes) it expands it into a TRANSPOSE plus shape
+# arithmetic. The result type comes from the node meta, so dynamic dimensions
+# pass through.
 @lowerings.lower(torch.ops.litert_torch.bmm_4d)
 def _bmm_4d_lower(
     lctx,
     lhs: ir.Value,
     rhs: ir.Value,
 ):
-  dot_dnums = stablehlo.DotDimensionNumbers.get(
-      lhs_batching_dimensions=[0, 1],
-      rhs_batching_dimensions=[0, 1],
-      lhs_contracting_dimensions=(3,),
-      rhs_contracting_dimensions=(3,),
-  )
-  return stablehlo.dot_general(
-      ir.RankedTensorType.get(
-          (
-              lhs.type.shape[0],
-              lhs.type.shape[1],
-              lhs.type.shape[2],
-              rhs.type.shape[2],
-          ),
-          lhs.type.element_type,
-      ),
-      lhs,
-      rhs,
-      dot_dnums,
+  return tfl_lowerings._ir_operation(  # pylint: disable=protected-access
+      "tfl.batch_matmul",
+      results=lowering_utils.node_meta_to_ir_types(lctx.node),
+      operands=[lhs, rhs],
+      attributes={
+          "adj_x": ir.BoolAttr.get(False),
+          "adj_y": ir.BoolAttr.get(True),
+          "asymmetric_quantize_inputs": ir.BoolAttr.get(False),
+      },
   )

@@ -137,8 +137,8 @@ def fused_sdpa_cache_update(
   )
 
   g = query.size(2) // new_len
-  # `bmm_4d` lowers to a batched `dot_general` (TFLite BATCH_MATMUL), like the
-  # unfused SDPA decomposition. `torch.matmul` against the batch-1 caches
+  # `bmm_4d` lowers to TFLite BATCH_MATMUL, like the unfused SDPA
+  # decomposition. `torch.matmul` against the batch-1 caches
   # lowers to a bias-less FULLY_CONNECTED instead; TFLite's composite inlining
   # (used when a CPU delegate does not claim this op) remaps its optional
   # bias index as a real tensor and the decomposition then fails at runtime.
