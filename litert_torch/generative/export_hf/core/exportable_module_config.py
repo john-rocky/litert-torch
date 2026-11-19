@@ -353,6 +353,22 @@ class ExportableModuleConfig:
       if legacy_prefill:
         self.use_sdpa_composite = True
 
+    # GPU composites do not support dynamic shapes (e.g. the KV cache length is
+    # an attribute of `odml.cache_update`), so dynamic shapes turn the master
+    # switch off before the flags below default to it, unless a GPU flag was
+    # set to True explicitly.
+    if (
+        self.enable_dynamic_shape
+        and self.apply_gpu_composites
+        and not any(getattr(self, name) for name in _GPU_OPTIMIZATION_FLAGS)
+    ):
+      warnings.warn(
+          "apply_gpu_composites=True is not supported with"
+          " enable_dynamic_shape=True; exporting without GPU composites.",
+          stacklevel=3,
+      )
+      self.apply_gpu_composites = False
+
     # Fill every unset flag with the master-switch default first and apply the
     # dependent defaults afterwards, so the result does not depend on the order
     # of `_GPU_OPTIMIZATION_FLAGS`.

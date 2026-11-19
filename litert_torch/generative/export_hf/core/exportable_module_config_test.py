@@ -116,6 +116,21 @@ class SdpaCompositeTest(parameterized.TestCase):
     self.assertFalse(config.enable_gpu_dynamic_cache)
     self.assertEqual(config.cache_length, 4096)
 
+  def test_dynamic_shape_turns_off_apply_gpu_composites(self):
+    with self.assertWarnsRegex(UserWarning, "enable_dynamic_shape"):
+      config = _config(apply_gpu_composites=True, enable_dynamic_shape=True)
+    self.assertFalse(config.apply_gpu_composites)
+    self.assertFalse(config.extra_kwargs["apply_gpu_composites"])
+    for flag_name in exportable_module_config._GPU_OPTIMIZATION_FLAGS:
+      self.assertFalse(getattr(config, flag_name), msg=flag_name)
+    # A GPU flag set to True keeps the GPU composite path.
+    config = _config(
+        apply_gpu_composites=True,
+        enable_dynamic_shape=True,
+        use_sdpa_composite=True,
+    )
+    self.assertTrue(config.apply_gpu_composites)
+
   @parameterized.named_parameters(
       ("defaults", {}),
       ("no_fuse_qkv", {"fuse_qkv": False}),

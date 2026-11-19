@@ -17,6 +17,7 @@
 import litert_torch.generative.export_hf  # pylint: disable=unused-import
 from absl.testing import parameterized
 import litert_torch
+from litert_torch.generative.export_hf.core import exportable_module
 from litert_torch.generative.export_hf.core import exportable_module_config
 from litert_torch.generative.export_hf.model_ext.qwen3 import patch
 from litert_torch.generative.layers import rotary_position_embedding as rotary_pos_emb
@@ -193,6 +194,34 @@ class PatchTest(parameterized.TestCase):
       torch.testing.assert_close(
           actual_logits, expected_logits, rtol=1e-4, atol=1e-4
       )
+
+  def test_dynamic_shape_export_with_gpu_composites(self):
+    config = _get_dummy_qwen3_config()
+    config.vocab_size = 256
+    model = modeling_qwen3.Qwen3ForCausalLM(config).eval()
+    model.config._attn_implementation = "lrt_transposed_attention"
+    export_config = exportable_module_config.ExportableModuleConfig(
+        model="dummy",
+        apply_gpu_composites=True,
+        enable_dynamic_shape=True,
+        prefill_lengths=[8],
+        cache_length=64,
+    )
+
+    with patch.patch_qwen3_model(model, export_config):
+      for module in (
+          exportable_module.LiteRTExportableModuleForDecoderOnlyLMPrefill(
+              model, export_config
+          ),
+          exportable_module.LiteRTExportableModuleForDecoderOnlyLMGenerate(
+              model, export_config
+          ),
+      ):
+        for inputs, dynamic_shapes in module.get_sample_inputs(config).values():
+          exported = torch.export.export(
+              module, args=(), kwargs=inputs, dynamic_shapes=dynamic_shapes
+          )
+          self.assertNotEmpty(exported.range_constraints)
 
 
 if __name__ == "__main__":
